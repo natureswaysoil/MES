@@ -39,46 +39,46 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         #region Properties
         [NinjaScriptProperty, Range(1, int.MaxValue)]
-        public int PivotLength_L { get; set; } = 10;
+        public int PivotLength_L { get; set; }
 
         [NinjaScriptProperty, Range(1, 5)]
-        public int RecentLevels_K { get; set; } = 1;
+        public int RecentLevels_K { get; set; }
 
         [NinjaScriptProperty, Range(1, 50)]
-        public int PPST_Prd { get; set; } = 4;
+        public int PPST_Prd { get; set; }
 
         [NinjaScriptProperty, Range(1.0, 10.0)]
-        public double PPST_Factor { get; set; } = 2.0;
+        public double PPST_Factor { get; set; }
 
         [NinjaScriptProperty, Range(1, 100)]
-        public int PPST_ATR_Period { get; set; } = 7;
+        public int PPST_ATR_Period { get; set; }
 
         [NinjaScriptProperty]
-        public bool UseSessionFilter { get; set; } = true;
+        public bool UseSessionFilter { get; set; }
 
         [NinjaScriptProperty, Range(1, 200)]
-        public int StdWindow { get; set; } = 20;
+        public int StdWindow { get; set; }
 
         [NinjaScriptProperty, Range(0.0, 5.0)]
-        public double KSigma { get; set; } = 0.75;
+        public double KSigma { get; set; }
 
         [NinjaScriptProperty]
-        public double DailyMaxLossUSD { get; set; } = 400.0;
+        public double DailyMaxLossUSD { get; set; }
 
         [NinjaScriptProperty]
-        public bool UseRealTimePnL { get; set; } = true;
+        public bool UseRealTimePnL { get; set; }
 
         [NinjaScriptProperty, Range(0, 5)]
-        public int EntryOffsetTicks { get; set; } = 1;
+        public int EntryOffsetTicks { get; set; }
 
         [NinjaScriptProperty, Range(0, 10)]
-        public int WickPenetrationTicks { get; set; } = 2;
+        public int WickPenetrationTicks { get; set; }
 
         [NinjaScriptProperty]
-        public bool AggressiveIntrabar { get; set; } = true;
+        public bool AggressiveIntrabar { get; set; }
 
         [NinjaScriptProperty]
-        public bool UseLimitEntry { get; set; } = true;
+        public bool UseLimitEntry { get; set; }
         #endregion
 
         #region OnStateChange
@@ -103,6 +103,22 @@ namespace NinjaTrader.NinjaScript.Strategies
                 RealtimeErrorHandling = RealtimeErrorHandling.StopCancelClose;
                 StopTargetHandling = StopTargetHandling.PerEntryExecution;
                 BarsRequiredToTrade = 20;
+                
+                // Set default values for user-configurable properties
+                PivotLength_L = 10;
+                RecentLevels_K = 1;
+                PPST_Prd = 4;
+                PPST_Factor = 2.0;
+                PPST_ATR_Period = 7;
+                UseSessionFilter = true;
+                StdWindow = 20;
+                KSigma = 0.75;
+                DailyMaxLossUSD = 400.0;
+                UseRealTimePnL = true;
+                EntryOffsetTicks = 1;
+                WickPenetrationTicks = 2;
+                AggressiveIntrabar = true;
+                UseLimitEntry = true;
             }
             else if (State == State.DataLoaded)
             {

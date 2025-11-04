@@ -122,15 +122,15 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
             else if (State == State.DataLoaded)
             {
-                swing = Swing(this.PivotLength_L);
-                atr = ATR(this.PPST_ATR_Period);
+                swing = Swing(PivotLength_L);
+                atr = ATR(PPST_ATR_Period);
                 adx = ADX(7);
                 Center = new Series<double>(this);
                 TUp = new Series<double>(this);
                 TDown = new Series<double>(this);
                 Trend = new Series<int>(this);
                 HL2Series = new Series<double>(this);
-                StdHL2 = StdDev(HL2Series, this.StdWindow);
+                StdHL2 = StdDev(HL2Series, StdWindow);
 
                 // Initialize Trend to 0 (neutral)
                 currentSessionDate = Time[0].Date;
@@ -141,7 +141,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         #region OnBarUpdate
         protected override void OnBarUpdate()
         {
-            if (CurrentBar < Math.Max(Math.Max(this.PivotLength_L * 2 + 5, this.PPST_ATR_Period + 5), this.StdWindow + 5)) 
+            if (CurrentBar < Math.Max(Math.Max(PivotLength_L * 2 + 5, PPST_ATR_Period + 5), StdWindow + 5)) 
                 return;
 
             ResetDailyIfNewSession();
@@ -152,7 +152,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 return; 
             }
 
-            if (!tradingHaltedToday && GetDailyRealized() <= -Math.Abs(this.DailyMaxLossUSD))
+            if (!tradingHaltedToday && GetDailyRealized() <= -Math.Abs(DailyMaxLossUSD))
             {
                 tradingHaltedToday = true;
                 if (Position.MarketPosition == MarketPosition.Long) 
@@ -179,14 +179,14 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (!double.IsNaN(swing.SwingLow[0]))
             {
                 recentSupports.Insert(0, swing.SwingLow[0]);
-                if (recentSupports.Count > this.RecentLevels_K)
+                if (recentSupports.Count > RecentLevels_K)
                     recentSupports.RemoveAt(recentSupports.Count - 1);
             }
 
             if (!double.IsNaN(swing.SwingHigh[0]))
             {
                 recentResistances.Insert(0, swing.SwingHigh[0]);
-                if (recentResistances.Count > this.RecentLevels_K)
+                if (recentResistances.Count > RecentLevels_K)
                     recentResistances.RemoveAt(recentResistances.Count - 1);
             }
 
@@ -207,8 +207,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 return;
             }
 
-            double up = curCenter - (this.PPST_Factor * atrValue);
-            double dn = curCenter + (this.PPST_Factor * atrValue);
+            double up = curCenter - (PPST_Factor * atrValue);
+            double dn = curCenter + (PPST_Factor * atrValue);
             double prevTUp = (CurrentBar > 0 && !double.IsNaN(TUp[1])) ? TUp[1] : up;
             double prevTDown = (CurrentBar > 0 && !double.IsNaN(TDown[1])) ? TDown[1] : dn;
 
@@ -219,8 +219,8 @@ namespace NinjaTrader.NinjaScript.Strategies
             int prevTrend = (CurrentBar > 0) ? Trend[1] : 0;
             Trend[0] = Close[0] > prevTDown ? 1 : Close[0] < prevTUp ? -1 : prevTrend;
 
-            double supTrig = !double.IsNaN(sup) ? sup + (this.KSigma * sigma) : double.NaN;
-            double resTrig = !double.IsNaN(res) ? res - (this.KSigma * sigma) : double.NaN;
+            double supTrig = !double.IsNaN(sup) ? sup + (KSigma * sigma) : double.NaN;
+            double resTrig = !double.IsNaN(res) ? res - (KSigma * sigma) : double.NaN;
 
             DrawOrRemove(TAG_SUP, sup, Brushes.LimeGreen);
             DrawOrRemove(TAG_RES, res, Brushes.Red);
@@ -233,8 +233,8 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (double.IsNaN(adxValue) || adxValue <= 25) 
                 return;
 
-            bool touchedSupport = !double.IsNaN(supTrig) && Low[0] <= (supTrig - this.WickPenetrationTicks * TickSize);
-            bool touchedResist = !double.IsNaN(resTrig) && High[0] >= (resTrig + this.WickPenetrationTicks * TickSize);
+            bool touchedSupport = !double.IsNaN(supTrig) && Low[0] <= (supTrig - WickPenetrationTicks * TickSize);
+            bool touchedResist = !double.IsNaN(resTrig) && High[0] >= (resTrig + WickPenetrationTicks * TickSize);
 
             // Check for NaN values before using in comparisons
             bool longConfirm = (Trend[0] == 1) && !double.IsNaN(supTrig) && Close[0] > supTrig;
@@ -244,16 +244,16 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 if (touchedSupport && longConfirm)
                 {
-                    if (this.UseLimitEntry)
-                        EnterLongLimit(1, supTrig + this.EntryOffsetTicks * TickSize, "L1");
+                    if (UseLimitEntry)
+                        EnterLongLimit(1, supTrig + EntryOffsetTicks * TickSize, "L1");
                     else
                         EnterLong(1, "L1");
                     return;
                 }
                 if (touchedResist && shortConfirm)
                 {
-                    if (this.UseLimitEntry)
-                        EnterShortLimit(1, resTrig - this.EntryOffsetTicks * TickSize, "S1");
+                    if (UseLimitEntry)
+                        EnterShortLimit(1, resTrig - EntryOffsetTicks * TickSize, "S1");
                     else
                         EnterShort(1, "S1");
                     return;
@@ -281,7 +281,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         #region Methods
         private bool InRTH()
         {
-            if (!this.UseSessionFilter) return true;
+            if (!UseSessionFilter) return true;
             int t = ToTime(Time[0]);
             return t >= 93000 && t <= 160000;
         }
@@ -291,7 +291,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (SystemPerformance == null || SystemPerformance.AllTrades == null)
                 return 0.0;
 
-            return this.UseRealTimePnL 
+            return UseRealTimePnL 
                 ? (SystemPerformance.RealTimeTrades != null ? SystemPerformance.RealTimeTrades.TradesPerformance.Currency.CumProfit : 0.0)
                 : SystemPerformance.AllTrades.TradesPerformance.Currency.CumProfit;
         }

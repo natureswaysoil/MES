@@ -1,4 +1,4 @@
-//#region Using declarations
+#region Using declarations
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -16,48 +16,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 {
     public class MES_Bounce_PPST_TurnCatcher : Strategy
     {
-        [NinjaScriptProperty, Range(1, int.MaxValue)]
-        public int PivotLength_L { get; set; } = 10;
-
-        [NinjaScriptProperty, Range(1, 5)]
-        public int RecentLevels_K { get; set; } = 1;
-
-        [NinjaScriptProperty, Range(1, 50)]
-        public int PPST_Prd { get; set; } = 4;
-
-        [NinjaScriptProperty, Range(1.0, 10.0)]
-        public double PPST_Factor { get; set; } = 2.0;
-
-        [NinjaScriptProperty, Range(1, 100)]
-        public int PPST_ATR_Period { get; set; } = 7;
-
-        [NinjaScriptProperty]
-        public bool UseSessionFilter { get; set; } = true;
-
-        [NinjaScriptProperty, Range(1, 200)]
-        public int StdWindow { get; set; } = 20;
-
-        [NinjaScriptProperty, Range(0.0, 5.0)]
-        public double KSigma { get; set; } = 0.75;
-
-        [NinjaScriptProperty]
-        public double DailyMaxLossUSD { get; set; } = 400.0;
-
-        [NinjaScriptProperty]
-        public bool UseRealTimePnL { get; set; } = true;
-
-        [NinjaScriptProperty, Range(0, 5)]
-        public int EntryOffsetTicks { get; set; } = 1;
-
-        [NinjaScriptProperty, Range(0, 10)]
-        public int WickPenetrationTicks { get; set; } = 2;
-
-        [NinjaScriptProperty]
-        public bool AggressiveIntrabar { get; set; } = true;
-
-        [NinjaScriptProperty]
-        public bool UseLimitEntry { get; set; } = true;
-
+        #region Variables
         private Swing swing;
         private ATR atr;
         private ADX adx;
@@ -76,7 +35,53 @@ namespace NinjaTrader.NinjaScript.Strategies
         private const string TAG_RES = "SRV_Res";
         private const string TAG_SUPTRIG = "SRV_SupTrig";
         private const string TAG_RESTRIG = "SRV_ResTrig";
+        #endregion
 
+        #region Properties
+        [NinjaScriptProperty, Range(1, int.MaxValue)]
+        public int PivotLength_L { get; set; }
+
+        [NinjaScriptProperty, Range(1, 5)]
+        public int RecentLevels_K { get; set; }
+
+        [NinjaScriptProperty, Range(1, 50)]
+        public int PPST_Prd { get; set; }
+
+        [NinjaScriptProperty, Range(1.0, 10.0)]
+        public double PPST_Factor { get; set; }
+
+        [NinjaScriptProperty, Range(1, 100)]
+        public int PPST_ATR_Period { get; set; }
+
+        [NinjaScriptProperty]
+        public bool UseSessionFilter { get; set; }
+
+        [NinjaScriptProperty, Range(1, 200)]
+        public int StdWindow { get; set; }
+
+        [NinjaScriptProperty, Range(0.0, 5.0)]
+        public double KSigma { get; set; }
+
+        [NinjaScriptProperty]
+        public double DailyMaxLossUSD { get; set; }
+
+        [NinjaScriptProperty]
+        public bool UseRealTimePnL { get; set; }
+
+        [NinjaScriptProperty, Range(0, 5)]
+        public int EntryOffsetTicks { get; set; }
+
+        [NinjaScriptProperty, Range(0, 10)]
+        public int WickPenetrationTicks { get; set; }
+
+        [NinjaScriptProperty]
+        public bool AggressiveIntrabar { get; set; }
+
+        [NinjaScriptProperty]
+        public bool UseLimitEntry { get; set; }
+        #endregion
+
+        #region OnStateChange
         protected override void OnStateChange()
         {
             if (State == State.SetDefaults)
@@ -98,6 +103,22 @@ namespace NinjaTrader.NinjaScript.Strategies
                 RealtimeErrorHandling = RealtimeErrorHandling.StopCancelClose;
                 StopTargetHandling = StopTargetHandling.PerEntryExecution;
                 BarsRequiredToTrade = 20;
+                
+                // Set default values for user-configurable properties
+                PivotLength_L = 10;
+                RecentLevels_K = 1;
+                PPST_Prd = 4;
+                PPST_Factor = 2.0;
+                PPST_ATR_Period = 7;
+                UseSessionFilter = true;
+                StdWindow = 20;
+                KSigma = 0.75;
+                DailyMaxLossUSD = 400.0;
+                UseRealTimePnL = true;
+                EntryOffsetTicks = 1;
+                WickPenetrationTicks = 2;
+                AggressiveIntrabar = true;
+                UseLimitEntry = true;
             }
             else if (State == State.DataLoaded)
             {
@@ -115,36 +136,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 currentSessionDate = Time[0].Date;
             }
         }
+        #endregion
 
-        private bool InRTH()
-        {
-            if (!this.UseSessionFilter) return true;
-            int t = ToTime(Time[0]);
-            return t >= 93000 && t <= 160000;
-        }
-
-        private double CumRealized()
-        {
-            if (SystemPerformance == null || SystemPerformance.AllTrades == null)
-                return 0.0;
-
-            return this.UseRealTimePnL 
-                ? (SystemPerformance.RealTimeTrades != null ? SystemPerformance.RealTimeTrades.TradesPerformance.Currency.CumProfit : 0.0)
-                : SystemPerformance.AllTrades.TradesPerformance.Currency.CumProfit;
-        }
-
-        private double GetDailyRealized() => CumRealized() - dailyStartRealized;
-
-        private void ResetDailyIfNewSession()
-        {
-            if (Time[0].Date != currentSessionDate)
-            {
-                currentSessionDate = Time[0].Date;
-                tradingHaltedToday = false;
-                dailyStartRealized = CumRealized();
-            }
-        }
-
+        #region OnBarUpdate
         protected override void OnBarUpdate()
         {
             if (CurrentBar < Math.Max(Math.Max(this.PivotLength_L * 2 + 5, this.PPST_ATR_Period + 5), this.StdWindow + 5)) 
@@ -221,7 +215,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             TUp[0] = (Close[1] > prevTUp) ? Math.Max(up, prevTUp) : up;
             TDown[0] = (Close[1] < prevTDown) ? Math.Min(dn, prevTDown) : dn;
 
-            // Fixed: Check if CurrentBar > 0 before accessing Trend[1]
+            // Check if CurrentBar > 0 before accessing Trend[1]
             int prevTrend = (CurrentBar > 0) ? Trend[1] : 0;
             Trend[0] = Close[0] > prevTDown ? 1 : Close[0] < prevTUp ? -1 : prevTrend;
 
@@ -235,14 +229,14 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             double adxValue = adx[0];
 
-            // Fixed: Check for NaN before comparing ADX value
+            // Check for NaN before comparing ADX value
             if (double.IsNaN(adxValue) || adxValue <= 25) 
                 return;
 
             bool touchedSupport = !double.IsNaN(supTrig) && Low[0] <= (supTrig - this.WickPenetrationTicks * TickSize);
             bool touchedResist = !double.IsNaN(resTrig) && High[0] >= (resTrig + this.WickPenetrationTicks * TickSize);
 
-            // Fixed: Added NaN checks for supTrig and resTrig in comparisons
+            // Check for NaN values before using in comparisons
             bool longConfirm = (Trend[0] == 1) && !double.IsNaN(supTrig) && Close[0] > supTrig;
             bool shortConfirm = (Trend[0] == -1) && !double.IsNaN(resTrig) && Close[0] < resTrig;
 
@@ -266,7 +260,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
             }
 
-            // Fixed: Added CurrentBar check before accessing Close[1]
+            // Check CurrentBar before accessing Close[1]
             bool longToReverse = CurrentBar > 0 && !double.IsNaN(resTrig) && Close[1] <= resTrig && Close[0] >= resTrig;
             bool shortToReverse = CurrentBar > 0 && !double.IsNaN(supTrig) && Close[1] >= supTrig && Close[0] <= supTrig;
 
@@ -280,6 +274,37 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 ExitShort("XS1", "S1");
                 EnterLong(1, "L1");
+            }
+        }
+        #endregion
+
+        #region Methods
+        private bool InRTH()
+        {
+            if (!this.UseSessionFilter) return true;
+            int t = ToTime(Time[0]);
+            return t >= 93000 && t <= 160000;
+        }
+
+        private double CumRealized()
+        {
+            if (SystemPerformance == null || SystemPerformance.AllTrades == null)
+                return 0.0;
+
+            return this.UseRealTimePnL 
+                ? (SystemPerformance.RealTimeTrades != null ? SystemPerformance.RealTimeTrades.TradesPerformance.Currency.CumProfit : 0.0)
+                : SystemPerformance.AllTrades.TradesPerformance.Currency.CumProfit;
+        }
+
+        private double GetDailyRealized() => CumRealized() - dailyStartRealized;
+
+        private void ResetDailyIfNewSession()
+        {
+            if (Time[0].Date != currentSessionDate)
+            {
+                currentSessionDate = Time[0].Date;
+                tradingHaltedToday = false;
+                dailyStartRealized = CumRealized();
             }
         }
 
@@ -309,5 +334,6 @@ namespace NinjaTrader.NinjaScript.Strategies
             TryRemoveLine(TAG_SUPTRIG);
             TryRemoveLine(TAG_RESTRIG);
         }
+        #endregion
     }
 }

@@ -215,7 +215,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             TUp[0] = (Close[1] > prevTUp) ? Math.Max(up, prevTUp) : up;
             TDown[0] = (Close[1] < prevTDown) ? Math.Min(dn, prevTDown) : dn;
 
-            // Fixed: Check if CurrentBar > 0 before accessing Trend[1]
+            // Check if CurrentBar > 0 before accessing Trend[1]
             int prevTrend = (CurrentBar > 0) ? Trend[1] : 0;
             Trend[0] = Close[0] > prevTDown ? 1 : Close[0] < prevTUp ? -1 : prevTrend;
 
@@ -229,14 +229,14 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             double adxValue = adx[0];
 
-            // Fixed: Check for NaN before comparing ADX value
+            // Check for NaN before comparing ADX value
             if (double.IsNaN(adxValue) || adxValue <= 25) 
                 return;
 
             bool touchedSupport = !double.IsNaN(supTrig) && Low[0] <= (supTrig - this.WickPenetrationTicks * TickSize);
             bool touchedResist = !double.IsNaN(resTrig) && High[0] >= (resTrig + this.WickPenetrationTicks * TickSize);
 
-            // Fixed: Added NaN checks for supTrig and resTrig in comparisons
+            // Check for NaN values before using in comparisons
             bool longConfirm = (Trend[0] == 1) && !double.IsNaN(supTrig) && Close[0] > supTrig;
             bool shortConfirm = (Trend[0] == -1) && !double.IsNaN(resTrig) && Close[0] < resTrig;
 
@@ -260,7 +260,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
             }
 
-            // Fixed: Added CurrentBar check before accessing Close[1]
+            // Check CurrentBar before accessing Close[1]
             bool longToReverse = CurrentBar > 0 && !double.IsNaN(resTrig) && Close[1] <= resTrig && Close[0] >= resTrig;
             bool shortToReverse = CurrentBar > 0 && !double.IsNaN(supTrig) && Close[1] >= supTrig && Close[0] <= supTrig;
 

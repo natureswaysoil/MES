@@ -1,4 +1,4 @@
-n# Container image for deploying the indicator leasing app to Cloud Run
+# Container image for deploying the indicator leasing app to Cloud Run
 FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \

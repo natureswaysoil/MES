@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Thank you!</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+      body { font-family: Arial, sans-serif; margin: 0; padding: 2rem; line-height: 1.6; text-align: center; }
+      .container { max-width: 640px; margin: 0 auto; }
+      a.button { display: inline-block; margin-top: 1.5rem; padding: 0.75rem 1.5rem; background: #28a745; color: white; text-decoration: none; border-radius: 6px; }
+      a.button:hover { background: #218838; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Payment confirmed!</h1>
+      {% if customer_email %}
+        <p>A receipt has been sent to <strong>{{ customer_email }}</strong>.</p>
+      {% endif %}
+      <p>Click below to download your MES Indicator bundle:</p>
+      <p><a class="button" href="{{ url_for('download', session_id=session_id) }}">Download Now</a></p>
+      <p>Keep this page open until the download starts. You can bookmark the download link for the next 24 hours.</p>
+    </div>
+  </body>
+</html>

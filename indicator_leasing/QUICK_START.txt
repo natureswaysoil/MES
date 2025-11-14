@@ -1,0 +1,21 @@
+MES Indicator Bundle – Quick Start
+==================================
+
+Included files:
+- CombinedTrendIndicator.cs
+- PivotPointSuperTrend.cs
+
+Installation (NinjaTrader 8):
+1. Save both .cs files to your computer.
+2. Open NinjaTrader 8.
+3. Go to Control Center → New → NinjaScript Editor.
+4. Right-click inside the editor and choose "Import" → "NinjaScript Add-On".
+5. Browse to the downloaded files and complete the import.
+6. After compilation, the indicators appear under Indicators → Custom.
+
+Usage tips:
+- Apply CombinedTrendIndicator first to align signals with the overall trend.
+- Add PivotPointSuperTrend to visualize dynamic support/resistance levels.
+- Save a chart template so you can apply the duo quickly in the future.
+
+Support: support@natureswaysoil.com

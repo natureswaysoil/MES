@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Lease the MES Indicator Bundle</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+      body { font-family: Arial, sans-serif; margin: 0; padding: 2rem; line-height: 1.6; }
+      .container { max-width: 720px; margin: 0 auto; }
+      h1 { font-size: 2rem; margin-bottom: 1rem; }
+      .card { border: 1px solid #ccc; border-radius: 8px; padding: 1.5rem; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+      button { background-color: #635bff; color: white; border: none; border-radius: 6px; padding: 0.75rem 1.5rem; font-size: 1.1rem; cursor: pointer; }
+      button:hover { background-color: #4a42e0; }
+      ul { padding-left: 1.4rem; }
+      footer { margin-top: 2rem; font-size: 0.9rem; color: #666; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>MES Indicator Bundle Lease</h1>
+      <div class="card">
+        <p>This bundle includes:</p>
+        <ul>
+          <li><strong>CombinedTrendIndicator.cs</strong> – identifies aligned trend conditions.</li>
+          <li><strong>PivotPointSuperTrend.cs</strong> – plots dynamic support and resistance.</li>
+          <li><strong>Quick-start guide</strong> with installation steps for NinjaTrader 8.</li>
+        </ul>
+        {% if stripe_ready %}
+          <p>Click the button below to start a secure Stripe checkout. After payment you will receive an instant download link.</p>
+          <form action="{{ url_for('create_checkout_session') }}" method="POST">
+            <button type="submit">Secure Checkout with Stripe</button>
+          </form>
+        {% else %}
+          <p style="color:#b22222; font-weight:bold;">Checkout is temporarily unavailable.</p>
+          <p>Site owner: set <code>STRIPE_API_KEY</code> (or <code>STRIPE_SECRET_KEY</code>) and <code>STRIPE_PRICE_ID</code> in your server environment (or <code>.env</code>) and restart this app.</p>
+        {% endif %}
+      </div>
+      <footer>
+        <p>Need help? Email <a href="mailto:support@natureswaysoil.com">support@natureswaysoil.com</a>.</p>
+      </footer>
+    </div>
+  </body>
+</html>

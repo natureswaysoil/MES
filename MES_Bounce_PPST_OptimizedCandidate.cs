@@ -1,0 +1,385 @@
+#region Using declarations
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
+using System.Windows.Media;
+using NinjaTrader.Data;
+using NinjaTrader.Gui.Tools;
+using NinjaTrader.NinjaScript;
+using NinjaTrader.NinjaScript.Indicators;
+using NinjaTrader.NinjaScript.Strategies;
+using NinjaTrader.NinjaScript.DrawingTools;
+#endregion
+
+namespace NinjaTrader.NinjaScript.Strategies
+{
+    public class MES_Bounce_PPST_OptimizedCandidate : Strategy
+    {
+        #region Variables
+        private Swing swing;
+        private ATR atr;
+        private ADX adx;
+        private Series<double> Center;
+        private Series<double> TUp, TDown;
+        private Series<int> Trend;
+        private Series<double> HL2Series;
+        private StdDev StdHL2;
+        private readonly List<double> recentSupports = new List<double>();
+        private readonly List<double> recentResistances = new List<double>();
+        private bool tradingHaltedToday = false;
+        private DateTime currentSessionDate;
+        private double dailyStartRealized = 0.0;
+        private double highWater, lowWater, stopLevel = double.NaN;
+        private MarketPosition lastSide = MarketPosition.Flat;
+        private int lastExitBar = -10000;
+
+        private const string TAG_SUP = "SRV_Sup";
+        private const string TAG_RES = "SRV_Res";
+        private const string TAG_SUPTRIG = "SRV_SupTrig";
+        private const string TAG_RESTRIG = "SRV_ResTrig";
+        #endregion
+
+        #region Properties
+        [NinjaScriptProperty, Range(1, int.MaxValue)]
+        public int PivotLength_L { get; set; }
+
+        [NinjaScriptProperty, Range(1, 5)]
+        public int RecentLevels_K { get; set; }
+
+        [NinjaScriptProperty, Range(1, 50)]
+        public int PPST_Prd { get; set; }
+
+        [NinjaScriptProperty, Range(1.0, 10.0)]
+        public double PPST_Factor { get; set; }
+
+        [NinjaScriptProperty, Range(1, 100)]
+        public int PPST_ATR_Period { get; set; }
+
+        [NinjaScriptProperty]
+        public bool UseSessionFilter { get; set; }
+
+        [NinjaScriptProperty, Range(1, 200)]
+        public int StdWindow { get; set; }
+
+        [NinjaScriptProperty, Range(0.0, 5.0)]
+        public double KSigma { get; set; }
+
+        [NinjaScriptProperty]
+        public double DailyMaxLossUSD { get; set; }
+
+        [NinjaScriptProperty]
+        public bool UseRealTimePnL { get; set; }
+
+        [NinjaScriptProperty, Range(0, 5)]
+        public int EntryOffsetTicks { get; set; }
+
+        [NinjaScriptProperty, Range(0, 10)]
+        public int WickPenetrationTicks { get; set; }
+
+        [NinjaScriptProperty]
+        public bool AggressiveIntrabar { get; set; }
+
+        [NinjaScriptProperty]
+        public bool UseLimitEntry { get; set; }
+        [NinjaScriptProperty, Range(0.25, 50)] public double StopPoints { get; set; }
+        [NinjaScriptProperty, Range(0, 50)] public double BreakEvenPoints { get; set; }
+        [NinjaScriptProperty] public bool UseTrailing { get; set; }
+        [NinjaScriptProperty, Range(0.25, 50)] public double TrailingPoints { get; set; }
+        [NinjaScriptProperty, Range(0, 50)] public double TrailingStartPoints { get; set; }
+        [NinjaScriptProperty, Range(0, 100)] public double MinAdx { get; set; }
+        [NinjaScriptProperty, Range(0, 30)] public int CooldownBars { get; set; }
+        [NinjaScriptProperty, Range(0, 20)] public double MinAtrPoints { get; set; }
+        #endregion
+
+        #region OnStateChange
+        protected override void OnStateChange()
+        {
+            if (State == State.SetDefaults)
+            {
+                Name = "MES_Bounce_PPST_OptimizedCandidate";
+                Description = "MES Bounce strategy using PPST and Turn Catcher logic with support/resistance levels";
+                Calculate = Calculate.OnBarClose;
+                EntriesPerDirection = 1;
+                EntryHandling = EntryHandling.AllEntries;
+                IsOverlay = true;
+                IsExitOnSessionCloseStrategy = true;
+                IsFillLimitOnTouch = false;
+                MaximumBarsLookBack = MaximumBarsLookBack.TwoHundredFiftySix;
+                OrderFillResolution = OrderFillResolution.Standard;
+                Slippage = 0;
+                StartBehavior = StartBehavior.WaitUntilFlat;
+                TimeInForce = TimeInForce.Gtc;
+                TraceOrders = false;
+                RealtimeErrorHandling = RealtimeErrorHandling.StopCancelClose;
+                StopTargetHandling = StopTargetHandling.PerEntryExecution;
+                BarsRequiredToTrade = 20;
+                
+                // Set default values for user-configurable properties
+                PivotLength_L = 10;
+                RecentLevels_K = 1;
+                PPST_Prd = 4;
+                PPST_Factor = 2.0;
+                PPST_ATR_Period = 7;
+                UseSessionFilter = true;
+                StdWindow = 20;
+                KSigma = 0.75;
+                DailyMaxLossUSD = 400.0;
+                UseRealTimePnL = true;
+                EntryOffsetTicks = 1;
+                WickPenetrationTicks = 2;
+                AggressiveIntrabar = true;
+                UseLimitEntry = true;
+                StopPoints = 10; BreakEvenPoints = 5;
+                UseTrailing = false; TrailingPoints = 6; TrailingStartPoints = 5;
+                MinAdx = 25; CooldownBars = 0; MinAtrPoints = 0;
+                IncludeCommission = true;
+            }
+            else if (State == State.DataLoaded)
+            {
+                swing = Swing(this.PivotLength_L);
+                atr = ATR(this.PPST_ATR_Period);
+                adx = ADX(7);
+                Center = new Series<double>(this);
+                TUp = new Series<double>(this);
+                TDown = new Series<double>(this);
+                Trend = new Series<int>(this);
+                HL2Series = new Series<double>(this);
+                StdHL2 = StdDev(HL2Series, this.StdWindow);
+
+                // Initialize Trend to 0 (neutral)
+                currentSessionDate = DateTime.MinValue;
+            }
+        }
+        #endregion
+
+        #region OnBarUpdate
+        protected override void OnBarUpdate()
+        {
+            if (CurrentBar < Math.Max(Math.Max(this.PivotLength_L * 2 + 5, this.PPST_ATR_Period + 5), this.StdWindow + 5)) 
+                return;
+
+            ResetDailyIfNewSession();
+            MaintainStops();
+
+            if (!InRTH()) 
+            { 
+                RemoveAllLines(); 
+                return; 
+            }
+
+            if (!tradingHaltedToday && GetDailyRealized() + (Position.MarketPosition == MarketPosition.Flat ? 0 : Position.GetUnrealizedProfitLoss(PerformanceUnit.Currency, Close[0])) <= -Math.Abs(this.DailyMaxLossUSD))
+            {
+                tradingHaltedToday = true;
+                if (Position.MarketPosition == MarketPosition.Long) 
+                    ExitLong("DailyStop_XL", "L1");
+                if (Position.MarketPosition == MarketPosition.Short) 
+                    ExitShort("DailyStop_XS", "S1");
+            }
+
+            if (tradingHaltedToday) 
+            { 
+                RemoveAllLines(); 
+                return; 
+            }
+
+            HL2Series[0] = (High[0] + Low[0]) * 0.5;
+            double sigma = StdHL2[0];
+
+            if (double.IsNaN(sigma) || sigma <= 0) 
+            { 
+                RemoveAllLines(); 
+                return; 
+            }
+
+            if (!double.IsNaN(swing.SwingLow[0]))
+            {
+                recentSupports.Insert(0, swing.SwingLow[0]);
+                if (recentSupports.Count > this.RecentLevels_K)
+                    recentSupports.RemoveAt(recentSupports.Count - 1);
+            }
+
+            if (!double.IsNaN(swing.SwingHigh[0]))
+            {
+                recentResistances.Insert(0, swing.SwingHigh[0]);
+                if (recentResistances.Count > this.RecentLevels_K)
+                    recentResistances.RemoveAt(recentResistances.Count - 1);
+            }
+
+            double sup = recentSupports.Count > 0 ? recentSupports[0] : double.NaN;
+            double res = recentResistances.Count > 0 ? recentResistances[0] : double.NaN;
+            double lastPP = !double.IsNaN(swing.SwingHigh[0]) ? swing.SwingHigh[0] 
+                          : !double.IsNaN(swing.SwingLow[0]) ? swing.SwingLow[0] 
+                          : double.NaN;
+
+            double prevCenter = (CurrentBar > 0 && !double.IsNaN(Center[1])) ? Center[1] : Close[0];
+            double curCenter = !double.IsNaN(lastPP) ? ((prevCenter * 2.0) + lastPP) / 3.0 : prevCenter;
+            Center[0] = curCenter;
+
+            double atrValue = atr[0];
+            if (double.IsNaN(atrValue) || atrValue <= 0)
+            {
+                RemoveAllLines();
+                return;
+            }
+
+            double up = curCenter - (this.PPST_Factor * atrValue);
+            double dn = curCenter + (this.PPST_Factor * atrValue);
+            double prevTUp = (CurrentBar > 0 && !double.IsNaN(TUp[1])) ? TUp[1] : up;
+            double prevTDown = (CurrentBar > 0 && !double.IsNaN(TDown[1])) ? TDown[1] : dn;
+
+            TUp[0] = (Close[1] > prevTUp) ? Math.Max(up, prevTUp) : up;
+            TDown[0] = (Close[1] < prevTDown) ? Math.Min(dn, prevTDown) : dn;
+
+            // Check if CurrentBar > 0 before accessing Trend[1]
+            int prevTrend = (CurrentBar > 0) ? Trend[1] : 0;
+            Trend[0] = Close[0] > prevTDown ? 1 : Close[0] < prevTUp ? -1 : prevTrend;
+
+            double supTrig = !double.IsNaN(sup) ? sup + (this.KSigma * sigma) : double.NaN;
+            double resTrig = !double.IsNaN(res) ? res - (this.KSigma * sigma) : double.NaN;
+
+            DrawOrRemove(TAG_SUP, sup, Brushes.LimeGreen);
+            DrawOrRemove(TAG_RES, res, Brushes.Red);
+            DrawOrRemove(TAG_SUPTRIG, supTrig, Brushes.Teal);
+            DrawOrRemove(TAG_RESTRIG, resTrig, Brushes.DarkOrange);
+
+            double adxValue = adx[0];
+
+            // Check for NaN before comparing ADX value
+            if (double.IsNaN(adxValue) || adxValue <= MinAdx || atrValue < MinAtrPoints) 
+                return;
+
+            bool touchedSupport = !double.IsNaN(supTrig) && Low[0] <= (supTrig - this.WickPenetrationTicks * TickSize);
+            bool touchedResist = !double.IsNaN(resTrig) && High[0] >= (resTrig + this.WickPenetrationTicks * TickSize);
+
+            // Check for NaN values before using in comparisons
+            bool longConfirm = (Trend[0] == 1) && !double.IsNaN(supTrig) && Close[0] > supTrig;
+            bool shortConfirm = (Trend[0] == -1) && !double.IsNaN(resTrig) && Close[0] < resTrig;
+
+            if (Position.MarketPosition == MarketPosition.Flat && CurrentBar - lastExitBar > CooldownBars)
+            {
+                if (touchedSupport && longConfirm)
+                {
+                    SetStopLoss("L1", CalculationMode.Ticks, Math.Max(1, (int)Math.Round(StopPoints / TickSize)), false);
+                    if (this.UseLimitEntry)
+                        EnterLongLimit(1, supTrig + this.EntryOffsetTicks * TickSize, "L1");
+                    else
+                        EnterLong(1, "L1");
+                    return;
+                }
+                if (touchedResist && shortConfirm)
+                {
+                    SetStopLoss("S1", CalculationMode.Ticks, Math.Max(1, (int)Math.Round(StopPoints / TickSize)), false);
+                    if (this.UseLimitEntry)
+                        EnterShortLimit(1, resTrig - this.EntryOffsetTicks * TickSize, "S1");
+                    else
+                        EnterShort(1, "S1");
+                    return;
+                }
+            }
+
+            // Check CurrentBar before accessing Close[1]
+            bool longToReverse = CurrentBar > 0 && !double.IsNaN(resTrig) && Close[1] <= resTrig && Close[0] >= resTrig;
+            bool shortToReverse = CurrentBar > 0 && !double.IsNaN(supTrig) && Close[1] >= supTrig && Close[0] <= supTrig;
+
+            if (Position.MarketPosition == MarketPosition.Long && longToReverse)
+            {
+                ExitLong("XL1", "L1");
+                lastExitBar = CurrentBar;
+                return;
+            }
+            if (Position.MarketPosition == MarketPosition.Short && shortToReverse)
+            {
+                ExitShort("XS1", "S1");
+                lastExitBar = CurrentBar;
+            }
+        }
+        #endregion
+
+        #region Methods
+        private void MaintainStops()
+        {
+            if (Position.MarketPosition == MarketPosition.Flat)
+            {
+                lastSide = MarketPosition.Flat; stopLevel = double.NaN; return;
+            }
+            double entry = Position.AveragePrice;
+            MarketPosition side = Position.MarketPosition;
+            if (lastSide != side)
+            {
+                lastSide = side; highWater = High[0]; lowWater = Low[0];
+                stopLevel = side == MarketPosition.Long ? entry - StopPoints : entry + StopPoints;
+            }
+            highWater = Math.Max(highWater, High[0]);
+            lowWater = Math.Min(lowWater, Low[0]);
+            double move = side == MarketPosition.Long ? highWater - entry : entry - lowWater;
+            double next = stopLevel;
+            if (BreakEvenPoints > 0 && move >= BreakEvenPoints)
+                next = side == MarketPosition.Long ? Math.Max(next, entry) : Math.Min(next, entry);
+            if (UseTrailing && move >= TrailingStartPoints)
+                next = side == MarketPosition.Long ? Math.Max(next, highWater - TrailingPoints) : Math.Min(next, lowWater + TrailingPoints);
+            next = Instrument.MasterInstrument.RoundToTickSize(next);
+            if (side == MarketPosition.Long && next > stopLevel && next < Close[0] - TickSize) stopLevel = next;
+            if (side == MarketPosition.Short && next < stopLevel && next > Close[0] + TickSize) stopLevel = next;
+            if (side == MarketPosition.Long) SetStopLoss("L1", CalculationMode.Price, stopLevel, false);
+            else SetStopLoss("S1", CalculationMode.Price, stopLevel, false);
+        }
+
+        private bool InRTH()
+        {
+            if (!this.UseSessionFilter) return true;
+            int t = ToTime(Time[0]);
+            return t >= 93000 && t <= 160000;
+        }
+
+        private double CumRealized()
+        {
+            if (SystemPerformance == null || SystemPerformance.AllTrades == null)
+                return 0.0;
+
+            return this.UseRealTimePnL 
+                ? (SystemPerformance.RealTimeTrades != null ? SystemPerformance.RealTimeTrades.TradesPerformance.Currency.CumProfit : 0.0)
+                : SystemPerformance.AllTrades.TradesPerformance.Currency.CumProfit;
+        }
+
+        private double GetDailyRealized() => CumRealized() - dailyStartRealized;
+
+        private void ResetDailyIfNewSession()
+        {
+            if (Time[0].Date != currentSessionDate)
+            {
+                currentSessionDate = Time[0].Date;
+                tradingHaltedToday = false;
+                dailyStartRealized = CumRealized();
+            }
+        }
+
+        private void DrawOrRemove(string tag, double price, Brush brush)
+        {
+            if (double.IsNaN(price)) 
+            { 
+                TryRemoveLine(tag); 
+                return; 
+            }
+            Draw.HorizontalLine(this, tag, price, brush);
+        }
+
+        private void TryRemoveLine(string tag)
+        {
+            try 
+            { 
+                RemoveDrawObject(tag); 
+            } 
+            catch { }
+        }
+
+        private void RemoveAllLines()
+        {
+            TryRemoveLine(TAG_SUP);
+            TryRemoveLine(TAG_RES);
+            TryRemoveLine(TAG_SUPTRIG);
+            TryRemoveLine(TAG_RESTRIG);
+        }
+        #endregion
+    }
+}
